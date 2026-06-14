@@ -32,13 +32,13 @@ header{background:#A50034;color:#fff;padding:14px;text-align:center;font-size:24
 
 <div class="modal" id="newModal">
 <div class="box">
-<h2>Add Note / Incident</h2>
+<h2>Add Details</h2>
 <input id="jobNo" class="field" placeholder="Job Number">
 <div class="row">
 <div><label>Book On</label><input id="bookOn" type="time" class="field"></div>
 <div><label>Book Off</label><input id="bookOff" type="time" class="field"></div>
 </div>
-<input id="pvn" class="field" placeholder="PVN (6 digits)">
+
 <select id="reason" class="field">
 <option>General Shift Log</option>
 <option>Operational Incident</option>
@@ -47,7 +47,7 @@ header{background:#A50034;color:#fff;padding:14px;text-align:center;font-size:24
 <option>Door Fault</option>
 <option>Other</option>
 </select>
-<textarea id="report" placeholder="Initial Report"></textarea>
+<textarea id="report" placeholder="Initial Details"></textarea>
 <button class="btn" onclick="saveLog()">Save</button>
 <button class="btn" onclick="closeModal('newModal')">Cancel</button>
 </div>
@@ -83,17 +83,17 @@ function nextRef(){
 }
 
 function saveLog(){
- if(!/^\d{6}$/.test(pvn.value)){alert('PVN must be 6 digits');return;}
+ 
  if(editingIndex!==null){
    logs[editingIndex].jobNo=jobNo.value;
    logs[editingIndex].bookOn=bookOn.value;
    logs[editingIndex].bookOff=bookOff.value;
-   logs[editingIndex].pvn=pvn.value;
+   
    logs[editingIndex].reason=reason.value;
    editingIndex=null;
  } else {
  logs.push({
-  ref:nextRef(),jobNo:jobNo.value,bookOn:bookOn.value,bookOff:bookOff.value,pvn:pvn.value,
+  ref:nextRef(),jobNo:jobNo.value,bookOn:bookOn.value,bookOff:bookOff.value,
   reason:reason.value,trains:[],equipment:[],delays:[],revenue:[],shiftEnded:false,
   updates:[{time:stamp(),text:report.value||'Log Created'}],expanded:false
  });
@@ -109,7 +109,7 @@ function openAction(i,t){
  if(t==='equipment') h='<input id=f1 class=field placeholder="BWV Number"><input id=f2 class=field placeholder="STAR Mobile Number">';
  if(t==='defect') h='<input id=f1 class=field placeholder="Unit"><textarea id=f2 placeholder="Defect"></textarea>';
  if(t==='assist') h='<input id=f1 class=field placeholder="Assist Type"><input id=f2 class=field placeholder="Destination">';
- if(t==='incident') h='<textarea id=f1 placeholder="Incident"></textarea>';
+ if(t==='details') h='<textarea id=f1 placeholder="Enter details"></textarea>';
  if(t==='count') h='<input id=f1 class=field placeholder="Location"><input id=f2 class=field placeholder="First Class"><input id=f3 class=field placeholder="Standard Class">';
  if(t==='delay') h='<input id=f1 class=field placeholder="Delay Minutes"><input id=f2 class=field placeholder="Cause">';
  if(t==='revenue') h='<input id=f1 class=field placeholder="Ticket Scans"><input id=f2 class=field placeholder="Ticket Sales (£)">';
@@ -132,7 +132,7 @@ function saveAction(){
  }
  if(activeAction==='defect') l.updates.push({time:stamp(),text:`DEFECT\nUnit: ${f1.value}\n${f2.value}`});
  if(activeAction==='assist') l.updates.push({time:stamp(),text:`ASSIST\nType: ${f1.value}\nDestination: ${f2.value}`});
- if(activeAction==='incident') l.updates.push({time:stamp(),text:`INCIDENT\n${f1.value}`});
+ if(activeAction==='details') l.updates.push({time:stamp(),text:`DETAILS\n${f1.value}`});
  if(activeAction==='count'){
    const total=(+f2.value||0)+(+f3.value||0);
    l.updates.push({time:stamp(),text:`PASSENGER COUNT\nLocation: ${f1.value}\nFirst Class: ${f2.value}\nStandard Class: ${f3.value}\nTotal: ${total}`});
@@ -146,9 +146,7 @@ function saveAction(){
    l.revenue.push({scans,sales,commission:totalCommission});
    l.updates.push({time:stamp(),text:`REVENUE\nTicket Scans: ${scans}\nTicket Sales: £${sales.toFixed(2)}\nScan Commission: £${scanCommission.toFixed(2)}\nSales Commission: £${salesCommission.toFixed(2)}\nTotal Commission: £${totalCommission.toFixed(2)}`});
  }
- if(activeAction==='note'){
-   l.updates.push({time:stamp(),text:`NOTE\n${f1.value}`});
- }
+ 
  if(activeAction==='delay'){
    const mins=parseInt(f1.value||0);
    l.delays.push({minutes:mins,cause:f2.value});
@@ -164,7 +162,7 @@ function editShift(i){
  jobNo.value=x.jobNo||'';
  bookOn.value=x.bookOn||'';
  bookOff.value=x.bookOff||'';
- pvn.value=x.pvn||'';
+ 
  reason.value=x.reason||'';
  newModal.style.display='block';
 }
@@ -193,7 +191,7 @@ function reportText(x){
 Job Number: ${x.jobNo}
 Book On: ${x.bookOn}
 Book Off: ${x.bookOff}
-PVN: ${x.pvn}\nHeadcodes Worked: ${x.trains.map(t=>t.headcode).join(', ')}\nStatus: ${x.shiftEnded?'COMPLETE':'ACTIVE'}
+Headcodes Worked: ${x.trains.map(t=>t.headcode).join(', ')}\nStatus: ${x.shiftEnded?'COMPLETE':'ACTIVE'}
 
 Total Delays: ${x.delays.length}
 Delay Minutes: ${delayTotal}
@@ -216,11 +214,11 @@ function render(){
  <button class="btn" onclick="openAction(${i},'equipment')">Add Equipment</button>
  <button class="btn" onclick="openAction(${i},'defect')">Defect</button>
  <button class="btn" onclick="openAction(${i},'assist')">Assist</button>
- <button class="btn" onclick="openAction(${i},'incident')">Incident</button>
+ <button class="btn" onclick="openAction(${i},'details')">Add Details</button>
  <button class="btn" onclick="openAction(${i},'count')">Passenger Count</button>
  <button class="btn" onclick="openAction(${i},'delay')">Delay</button>
  <button class="btn" onclick="openAction(${i},'revenue')">Revenue</button>
- <button class="btn" onclick="openAction(${i},'note')">Note</button>
+ 
  <button class="btn" onclick="editShift(${i})">Edit Shift</button><button class="btn" onclick="endShift(${i})">End Shift</button><button class="btn" onclick="deleteShift(${i})">Delete Shift</button><button class="btn" onclick="copyReport(${i})">Copy Report</button>
  </div></div>`).join('');
 }
