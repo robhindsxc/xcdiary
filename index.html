@@ -94,7 +94,7 @@ function saveLog(){
  } else {
  logs.push({
   ref:nextRef(),jobNo:jobNo.value,bookOn:bookOn.value,bookOff:bookOff.value,pvn:pvn.value,
-  reason:reason.value,trains:[],equipment:[],delays:[],shiftEnded:false,
+  reason:reason.value,trains:[],equipment:[],delays:[],revenue:[],shiftEnded:false,
   updates:[{time:stamp(),text:report.value||'Log Created'}],expanded:false
  });
  }
@@ -112,6 +112,8 @@ function openAction(i,t){
  if(t==='incident') h='<textarea id=f1 placeholder="Incident"></textarea>';
  if(t==='count') h='<input id=f1 class=field placeholder="Location"><input id=f2 class=field placeholder="First Class"><input id=f3 class=field placeholder="Standard Class">';
  if(t==='delay') h='<input id=f1 class=field placeholder="Delay Minutes"><input id=f2 class=field placeholder="Cause">';
+ if(t==='revenue') h='<input id=f1 class=field placeholder="Ticket Scans"><input id=f2 class=field placeholder="Ticket Sales (£)">';
+ if(t==='note') h='<textarea id=f1 placeholder="Enter note"></textarea>';
  actionFields.innerHTML=h;
  actionModal.style.display='block';
 }
@@ -134,6 +136,18 @@ function saveAction(){
  if(activeAction==='count'){
    const total=(+f2.value||0)+(+f3.value||0);
    l.updates.push({time:stamp(),text:`PASSENGER COUNT\nLocation: ${f1.value}\nFirst Class: ${f2.value}\nStandard Class: ${f3.value}\nTotal: ${total}`});
+ }
+ if(activeAction==='revenue'){
+   const scans=parseInt(f1.value||0);
+   const sales=parseFloat(f2.value||0);
+   const scanCommission=scans*0.02;
+   const salesCommission=sales*0.06;
+   const totalCommission=scanCommission+salesCommission;
+   l.revenue.push({scans,sales,commission:totalCommission});
+   l.updates.push({time:stamp(),text:`REVENUE\nTicket Scans: ${scans}\nTicket Sales: £${sales.toFixed(2)}\nScan Commission: £${scanCommission.toFixed(2)}\nSales Commission: £${salesCommission.toFixed(2)}\nTotal Commission: £${totalCommission.toFixed(2)}`});
+ }
+ if(activeAction==='note'){
+   l.updates.push({time:stamp(),text:`NOTE\n${f1.value}`});
  }
  if(activeAction==='delay'){
    const mins=parseInt(f1.value||0);
@@ -172,6 +186,9 @@ function toggle(i){logs[i].expanded=!logs[i].expanded;render();}
 
 function reportText(x){
  let delayTotal=x.delays.reduce((a,b)=>a+b.minutes,0);
+ let totalScans=(x.revenue||[]).reduce((a,b)=>a+b.scans,0);
+ let totalSales=(x.revenue||[]).reduce((a,b)=>a+b.sales,0);
+ let totalCommission=(x.revenue||[]).reduce((a,b)=>a+b.commission,0);
  return `Reference: ${x.ref}
 Job Number: ${x.jobNo}
 Book On: ${x.bookOn}
@@ -202,6 +219,8 @@ function render(){
  <button class="btn" onclick="openAction(${i},'incident')">Incident</button>
  <button class="btn" onclick="openAction(${i},'count')">Passenger Count</button>
  <button class="btn" onclick="openAction(${i},'delay')">Delay</button>
+ <button class="btn" onclick="openAction(${i},'revenue')">Revenue</button>
+ <button class="btn" onclick="openAction(${i},'note')">Note</button>
  <button class="btn" onclick="editShift(${i})">Edit Shift</button><button class="btn" onclick="endShift(${i})">End Shift</button><button class="btn" onclick="deleteShift(${i})">Delete Shift</button><button class="btn" onclick="copyReport(${i})">Copy Report</button>
  </div></div>`).join('');
 }
