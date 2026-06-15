@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notepad</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f3f3f3}
+header{background:#A50034;color:#fff;padding:14px;text-align:center;font-size:24px;font-weight:bold}
+.wrap{max-width:100%;margin:auto;padding:8px}
+.search,.field,textarea,input{width:100%;padding:10px;box-sizing:border-box;margin:4px 0}
+.bar{background:#A50034;color:#fff;border-radius:12px;margin:10px 0;overflow:hidden}
+.barhead{padding:8px;cursor:pointer}
+.details{display:none;background:#fff;color:#000;padding:8px}
+.btn{padding:8px 12px;border:none;border-radius:8px;margin:3px;cursor:pointer;background:#f0c300;font-weight:bold}
+.red{background:#c00000;color:#fff}
+.gold{background:#f0c300}
+.fab{position:fixed;right:20px;bottom:20px;width:70px;height:70px;border:none;border-radius:50%;background:#f0c300;font-size:40px}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6)}
+.box{background:#fff;max-width:700px;margin:40px auto;padding:15px;border-radius:12px}
+.update{border-left:4px solid #A50034;padding-left:8px;margin:8px 0}
+.train{color:#008000;font-weight:bold}
+.delay{color:#c00000;font-weight:bold}.assist{background:#cfe8ff;color:#000;padding:8px;border-radius:8px;font-weight:bold;display:block;border-left:4px solid #0066cc}.tcc{background:#fff59d;color:#c00000;padding:8px;border-radius:8px;font-weight:bold;display:block;border:3px solid #c00000}
+.incidentTable{width:100%;border-collapse:collapse;color:#c00000;font-weight:bold}
+.incidentTable td,.incidentTable th{border:1px solid #ccc;padding:6px}.safety{color:#c00000;font-weight:bold}.deleteBtn{background:#c00000;color:#fff;border:none;border-radius:50%;width:18px;height:18px;padding:0;font-size:11px;line-height:18px;cursor:pointer}.shiftDeleteBtn{background:#c00000;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer}
+.entryGrid{display:grid;grid-template-columns:1fr;gap:6px;max-height:70vh;overflow-y:auto;padding:4px}
+.entryBtn{height:58px!important;font-size:18px;font-size:16px;width:100%!important;margin:0!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;text-align:center!important;border-radius:14px}
+.entryBtn small{display:block;margin-top:2px;font-size:10px;line-height:1.2;color:#444;font-weight:normal}
+
+
+.swipe-item{position:relative;touch-action:pan-y}
+.swipe-delete{position:absolute;right:0;top:0;bottom:0;background:#c00000;color:#fff;
+display:flex;align-items:center;padding:0 12px;border-radius:8px}
+
+
+.swipe-delete-btn{
+ position:absolute;right:0;top:0;bottom:0;width:90px;
+ background:#c00000;color:#fff;border:none;font-weight:bold;
+}
+.swiped{transform:translateX(90px);transition:.2s}
+</style>
+</head>
+<body>
+<header>NOTEPAD</header>
+
+<div class="wrap">
+<input id="search" class="search" placeholder="Search..." onkeyup="render()">
+<div id="list"></div>
+</div>
+
+<button class="btn gold" style="position:fixed;right:15px;bottom:15px;border-radius:25px;padding:8px 16px;font-size:16px;z-index:1000;box-shadow:0 2px 6px rgba(0,0,0,.25)" onclick="newShift()">➕ Add Shift</button>
+
+<div class="modal" id="modal">
+<div class="box" style="width:95%;max-width:760px;max-height:85vh;overflow:hidden">
+<h3 id="mtitle"></h3>
+<div id="mcontent"></div>
+<div id="modalButtons"><button class="btn gold" onclick="saveModal()">Save</button><button class="btn" onclick="closeModal()">Cancel</button></div>
+</div>
+</div>
+
+<script>
+let logs=JSON.parse(localStorage.getItem('notepad_final')||'[]');
+let modalCallback=null;
+
+function save(){localStorage.setItem('notepad_final',JSON.stringify(logs));}
+function stamp(){
+ const d=new Date();
+ return d.toLocaleDateString('en-GB')+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function today(){return new Date().toLocaleDateString('en-GB');}
+
+function openModal(title,html,cb){
+ mtitle.innerText=title;
+ mcontent.innerHTML=html;
+ modalCallback=cb;
+ const mb=document.getElementById('modalButtons');
+ if(mb){
+   mb.innerHTML='<button class="btn gold" onclick="saveModal()">Submit</button><button class="btn" onclick="closeModal()">Cancel</button>';
+ }
+ modal.style.display='block';
+}
+function closeModal(){modal.style.display='none';}
+function saveModal(){if(modalCallback)modalCallback();closeModal();}
+
+function newShift(){
+ openModal('New Shift','<input id="turn" type="number" inputmode="numeric" placeholder="Turn Number"><label>Book On Time</label><input id="startTime" type="time"><label>Book Off Time</label><input id="endTime" type="time">',()=>{
+  logs.push({
+   date:today(),
+   turn:turn.value,startTime:startTime.value,endTime:endTime.value,
+   trains:[],
+   updates:[{time:stamp(),text:'SHIFT STARTED'}],
+   incidents:[],
+   ended:false,
+   expanded:true,overtime:''
+  });
+  save();render();
+ });
+}
+
+function toggle(i){logs[i].expanded=!logs[i].expanded;save();render();}
+
+function addTrain(i){
+ openModal('Train','<input id="headcode" placeholder="Headcode" style="text-transform:uppercase"><select id="activity"><option>WORKING</option><option>ACC</option><option>ASST</option><option>PASS</option></select><input id="unit" type="number" inputmode="numeric" placeholder="Unit"><label>Did the train hand over with an existing delay?</label><input id="delaymins" type="number" inputmode="numeric" value="0" placeholder="Delay Minutes"><input id="delayreason" placeholder="Reason for delay">',()=>{
+  logs[i].trains.push(headcode.value);
+  let trainText='TRAIN ADDED\nHeadcode: '+headcode.value.toUpperCase()+'\nActivity: '+activity.value+'\nUnit: '+unit.value;
+if(Number(delaymins.value||0)>0){
+ trainText+='\nExisting delay of '+delaymins.value+' minutes due to '+delayreason.value+' at handover.;
+}
+logs[i].updates.push({time:stamp(),type:'train',text:trainText});
+  save();render();
+ });
+}
+
+function addNote(i){openModal('Note','<textarea id="txt"></textarea>',()=>{logs[i].updates.push({time:stamp(),text:txt.value});save();render();});}
+function addGeneric(i,t){openModal(t,'<textarea id="txt"></textarea>',()=>{logs[i].updates.push({time:stamp(),type:'tcc',text:t.toUpperCase()+'\n'+txt.value});save();render();});}
+
+function addDefect(i){
+ openModal('Defect','<textarea id="defect" placeholder="Defect Description"></textarea><input id="pvn" type="number" inputmode="numeric" placeholder="PVN"><label><input type="checkbox" id="safety"> Safety Critical</label>',()=>{
+  logs[i].updates.push({
+   time:stamp(),
+   type:safety.checked?'safety':'',
+   text:(safety.checked?'⚠️ DEFECT':'DEFECT')+'\nPVN: '+pvn.value+'\nDefect: '+defect.value+'\nSafety Critical: '+(safety.checked?'YES':'NO')
+  });
+  save();render();
+ });
+}
+
+function addAssist(i){
+ openModal('Customer Assist','<select id="atype"><option>Wheelchair Assist</option><option>Ramp Assist</option><option>Priority Seat</option><option>Sighted Guide</option><option>Mobility Scooter</option><option>Assistance Dog</option><option>Passenger Transfer</option><option>Other</option></select><input id="otherAssist" placeholder="If Other, specify assist type"><input id="coach" maxlength="1" placeholder="Coach"><input id="seat" placeholder="Seat Number"><input id="dest" placeholder="Destination">',()=>{
+ logs[i].updates.push({time:stamp(),type:'assist',text:'CUSTOMER ASSIST\nAssist Type: '+(atype.value==='Other'?otherAssist.value:atype.value)+'\nCoach: '+coach.value.toUpperCase()+'\nSeat Number: '+seat.value+'\nDestination: '+dest.value});
+ save();render();
+ });
+}
+
+function addRSID(i){
+ openModal('RSID','<label>RSID: XC</label><input id="rsid" type="number" inputmode="numeric" maxlength="4" placeholder="XXXX">',()=>{
+  logs[i].updates.push({time:stamp(),text:'RSID\nXC'+rsid.value});
+  save();render();
+ });
+}
+
+function addPassengerCount(i){
+ openModal('Passenger Count','<input id="loc" placeholder="Location"><input id="fc" type="number" inputmode="numeric" placeholder="First Class"><input id="sc" type="number" inputmode="numeric" placeholder="Standard Class">',()=>{
+ const total=(+fc.value||0)+(+sc.value||0);
+ logs[i].updates.push({time:stamp(),text:'PASSENGER COUNT\nLocation: '+loc.value+'\nFirst Class: '+fc.value+'\nStandard Class: '+sc.value+'\nTotal: '+total});
+ save();render();
+ });
+}
+
+function addEquipment(i){
+ openModal('Equipment','<input id="tm" type="number" inputmode="numeric" placeholder="Ticket Machine #"><input id="bwv" type="number" inputmode="numeric" placeholder="Camera / BWV #">',()=>{
+  logs[i].updates.push({time:stamp(),text:'EQUIPMENT\nTicket Machine: '+tm.value+'\nBWV: '+bwv.value});
+  save();render();
+ });
+}
+
+function addRevenue(i){
+ openModal('Revenue','<input id="scans" type="number" inputmode="numeric" placeholder="Ticket Scans"><input id="sales" type="number" inputmode="decimal" step="0.01" placeholder="Ticket Sales £">',()=>{
+  let c=(+scans.value*0.02)+(+sales.value*0.06);
+  logs[i].updates.push({time:stamp(),text:'REVENUE\nScans: '+scans.value+'\nSales £'+sales.value+'\nCommission £'+c.toFixed(2)});
+  save();render();
+ });
+}
+
+function addDelay(i){
+ openModal('Delay','<input id="mins" type="number" inputmode="numeric" placeholder="Delay Minutes"><textarea id="reason" placeholder="Cause of Delay"></textarea>',()=>{
+  logs[i].updates.push({time:stamp(),type:'delay',text:'DELAY\nMinutes: '+mins.value+'\nCause: '+reason.value});
+  save();render();
+ });
+}
+
+
+function addOvertime(i){
+ openModal('Overtime','<input id="otmins" type="number" inputmode="numeric" placeholder="Minutes"><select id="otreason"><option>Late Running Service</option><option>Train Defect</option><option>Passenger Incident</option><option>Staffing Issue</option><option>Signal Failure</option><option>Points Failure</option><option>Crew Relief Delay</option><option>Other</option></select><input id="otherdelay" placeholder="If Other, specify reason">',()=>{
+  let m=Number(otmins.value||0);
+  logs[i].overtime=m;
+  logs[i].updates.push({time:stamp(),text:'OVERTIME / DELAY\nMinutes: '+m+'\nReason: '+(otreason.value==='Other'?otherdelay.value:otreason.value)});
+  save();render();
+ });
+}
+
+function startIncident(i){
+ openModal('Incident','<select id="itype"><option>Disruptive Passenger / ASB</option><option>Assault</option><option>Medical Emergency</option><option>Fatality</option><option>Trespass</option><option>Vandalism</option><option>Damage</option><option>Train Defect</option><option>Door Fault</option><option>Train Failure</option><option>Delay / Service Disruption</option><option>Overcrowding</option><option>Short Formation</option><option>Signal Failure</option><option>Points Failure</option><option>Emergency Services Attendance</option><option>Security Alert</option><option>Other</option></select><input id="otherReason" placeholder="If Other, specify reason"><textarea id="idesc" placeholder="Incident Description"></textarea>',()=>{
+ logs[i].incidents.push({id:Date.now(),type:(itype.value==='Other'?otherReason.value:itype.value)+' (incident)',title:idesc.value,open:true,updates:[{time:stamp(),text:'Incident Started'}]});
+ save();render();
+ });
+}
+
+function incidentUpdate(i,id){
+ openModal('Incident Update','<textarea id="txt"></textarea>',()=>{
+  logs[i].incidents.find(x=>x.id==id).updates.push({time:stamp(),text:txt.value});
+  save();render();
+ });
+}
+
+function closeIncident(i,id){
+ logs[i].incidents.find(x=>x.id==id).open=false;
+ save();render();
+}
+
+function deleteIncident(i,id){
+ logs[i].incidents=logs[i].incidents.filter(x=>x.id!=id);
+ save();render();
+}
+
+
+function copyIncidentLog(i,id){
+ let inc=logs[i].incidents.find(x=>x.id==id);
+ let txt='INCIDENT LOG\n\nType: '+(inc.type||'')+'\nDescription: '+inc.title+'\n\n';
+ txt+=inc.updates.map(u=>u.time+' - '+u.text).join('\n');
+ navigator.clipboard.writeText(txt);
+ alert('Incident log copied');
+}
+
+function deleteShift(i){
+ if(!confirm('Delete entire shift?')) return;
+ logs.splice(i,1);
+ save();render();
+}
+function deleteEntry(i,n){
+ if(!confirm('Delete entry?')) return;
+ logs[i].updates.splice(n,1);
+ save();render();
+}
+function endShift(i){
+ logs[i].ended=true;
+ logs[i].updates.push({time:stamp(),text:'SHIFT ENDED'});
+ save();render();
+}
+
+function buildReport(i){
+ let l=logs[i];
+ return `SHIFT SUMMARY
+
+Date: ${l.date}
+Turn: ${l.turn}\nBook On: ${l.startTime||''}\nBook Off: ${l.endTime||''}
+Headcodes: ${l.trains.join(', ')}
+
+${l.updates.map(u=>u.time+'\n'+u.text).join('\n\n')}`;
+}
+
+
+function saveCalendar(i){
+ let l=logs[i];
+ let ics=`BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:CrossCountry Duty - ${l.turn}
+DESCRIPTION:${buildReport(i).replace(/\n/g,' ')}
+DTSTART:${(l.date||'').split('/').reverse().join('')}T${(l.startTime||'0000').replace(':','')}00
+DTEND:${(l.date||'').split('/').reverse().join('')}T${(l.endTime||'0000').replace(':','')}00
+END:VEVENT
+END:VCALENDAR`;
+ let blob=new Blob([ics],{type:'text/calendar'});
+ let a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='duty_'+(l.turn||'shift')+'.ics';
+ a.click();
+}
+
+function dutyReport(i){
+ let l=logs[i];
+ let report=`DUTY REPORT
+
+Date: ${l.date}
+Turn: ${l.turn}\nBook On: ${l.startTime||''}\nBook Off: ${l.endTime||''}
+Headcodes: ${l.trains.join(', ')||'None recorded'}
+
+${l.updates.map(u=>u.text.replace(/\n/g,' - ')).join('\n')}
+
+Shift Status: ${l.ended?'Completed':'In Progress'}`;
+
+ navigator.clipboard.writeText(report);
+ openModal('Duty Report','<textarea style="width:100%;height:300px">'+report+'</textarea>',()=>{});
+}
+
+function copyReport(i){
+ navigator.clipboard.writeText(buildReport(i));
+ alert('Copied');
+}
+
+function emailReport(i){
+ window.location='mailto:?subject=Shift Report&body='+encodeURIComponent(buildReport(i));
+}
+
+
+function addEntryMenu(i){
+ document.getElementById('modalButtons').innerHTML='<button class="btn" onclick="closeModal()">Cancel</button>';
+
+ openModal('Add Entry',`
+ <div class="entryGrid">
+ <button class="btn entryBtn" onclick="closeModal();addTrain(${i})">🚆<small>TRAIN</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addGeneric(${i},'Control / TCC Message')">📞<small>TCC / CONTROL</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addDefect(${i})">⚠️<small>DEFECT</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addDelay(${i})">⏱<small>DELAY</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addOvertime(${i})">⏰<small>Log any overtime / delay to end of shift</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addAssist(${i})">♿<small>CUSTOMER ASSIST</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addPassengerCount(${i})">👥<small>PASSENGER COUNT</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addRevenue(${i})">💷<small>REVENUE</small></button>
+ <button class="btn red entryBtn" onclick="closeModal();startIncident(${i})">🚨<small>INCIDENT</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addNote(${i})">📝<small>NOTE</small></button>
+ <button class="btn entryBtn" onclick="closeModal();addEquipment(${i})">📷<small>EQUIPMENT</small></button><button class="btn entryBtn" onclick="closeModal();addRSID(${i})">🔖<small>RSID</small></button>
+ </div>
+ `,()=>{});
+}
+
+
+function render(){
+ let q=(search.value||'').toLowerCase();
+ list.innerHTML=logs.filter(x=>JSON.stringify(x).toLowerCase().includes(q)).map((x,i)=>`
+ <div class="bar">
+ <div class="barhead" onclick="toggle(${i})">
+ <b>${x.date}</b><br>
+ TURN ${x.turn||'-'}<br>
+ ${x.startTime?('BOOK ON '+x.startTime+'<br>BOOK OFF '+x.endTime+'<br>'):''}${x.trains.join(' • ')||'No Trains Added'}
+ ${x.overtime?'<br>OVERTIME +'+x.overtime+' MIN':''}${x.ended?'<br><span style="color:#00a000;font-weight:bold">✓ COMPLETE</span>':''}
+ </div>
+
+ <div class="details" style="display:${x.expanded?'block':'none'}">
+ <button class="btn gold" onclick="addEntryMenu(${i})">➕ Add Entry</button>
+ <button class="btn" onclick="endShift(${i})">Shift End</button>
+ <button class="btn" onclick="copyReport(${i})">Copy</button><button class="btn gold" onclick="dutyReport(${i})">Duty Report</button><button class="btn gold" onclick="saveCalendar(${i})">Calendar</button>
+ <button class="btn" onclick="emailReport(${i})">Email</button><button class="shiftDeleteBtn" onclick="deleteShift(${i})">🗑 Shift</button>
+
+ ${x.updates.map((u,n)=>`<div class="update"><b>${u.time}</b><br><span class="${u.type==='train'?'train':''} ${u.type==='delay'?'delay':''} ${u.type==='safety'?'safety':''} ${u.type==='assist'?'assist':''} ${u.type==='tcc'?'tcc':''}">${u.text}</span><br><button class="deleteBtn" onclick="deleteEntry(${i},${n})">✕</button></div>`).join('')}
+
+ ${x.incidents.map(inc=>`<div class="update">
+ <b style="color:#c00000">🚨 ${inc.type||'Incident'}<br>${inc.title}</b>
+ <button class="btn red" onclick="incidentUpdate(${i},${inc.id})">➕</button>
+ ${inc.open?`<button class="btn" onclick="closeIncident(${i},${inc.id})">➖</button>`:''}
+ <button class="btn gold" onclick="copyIncidentLog(${i},${inc.id})">📋</button><button class="btn red" onclick="deleteIncident(${i},${inc.id})">🗑</button>
+ <div style='color:#c00000;font-weight:bold'>⚠️ Times approximate</div><table class="incidentTable">
+ <tr><th>Time</th><th>Update</th></tr>
+ ${inc.updates.map(u=>`<tr><td>${u.time}</td><td>${u.text}</td></tr>`).join('')}
+ </table>
+ </div>`).join('')}
+ </div></div>`).join('');
+}
+render();
+</script>
+</body>
+</html>
